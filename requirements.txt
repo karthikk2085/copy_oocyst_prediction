@@ -2,4 +2,4 @@ cellpose==4.0.4
 scikit-image
 pandas
 SimpleITK
-
+h5py
