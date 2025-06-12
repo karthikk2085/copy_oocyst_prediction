@@ -4,7 +4,7 @@ dependencies:
   - python=3.10
   - pip
   - pip:
-    - cellpose
+    - cellpose=4.0.4
     - scikit-image
     - pandas
     - SimpleITK

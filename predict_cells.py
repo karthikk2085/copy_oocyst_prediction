@@ -14,7 +14,7 @@ Script to predict number of cells from a given list of files in an input csv
 file with column name 'file'.
 
 This script performs cell segmentation on 3D microscopy images stored in Imaris (.ims)
-format using Cellpose, identifying the most in-focus Z-slice and predicting on that 2D image.
+format using Cellpose (V3), identifying the most in-focus Z-slice and predicting on that 2D image.
 """
 
 
@@ -127,17 +127,18 @@ def predict_cell_segmentation(img, predictor):
     """
 
     # Identify z slice
-    img_array = sitk.GetArrayFromImage(img[:, :, get_z_slice_index_in_focus(img)])
+    z_slice_in_focus = get_z_slice_index_in_focus(img)
+    img_array = sitk.GetArrayFromImage(img[:, :, z_slice_in_focus])
 
     # Predict on the identified slice
     masks, flows, styles = predictor(img_array)
 
     # Post process the predicted mask
     filtered_mask = sitk.GetImageFromArray(clear_border(masks).astype(np.uint16))
+    filtered_mask.SetOrigin(img.GetOrigin()[:2])
+    filtered_mask.SetSpacing(img.GetSpacing()[:2])
 
-    # filtered_mask.SetOrigin(img.GetOrigin()[:2])
-
-    return filtered_mask
+    return filtered_mask, z_slice_in_focus
 
 
 def main(argv=None):
@@ -183,6 +184,7 @@ def main(argv=None):
 
     df = pd.read_csv(args.input_csv_path)
 
+    # Load the model
     model = models.CellposeModel(gpu=True)
     predictor = partial(
         model.eval,
@@ -192,15 +194,16 @@ def main(argv=None):
         normalize={"tile_norm_blocksize": args.tile_norm_blocksize},
     )
 
-    df["predicted_num_cells"] = [None] * len(df)
+    predicted_num_cells = []
     for i, file in enumerate(df["file"]):
 
         # Obtain the image at the target resolution
         img = read_image(file, target_spacing=args.target_spacing)
 
         # Predict cells on the obtained image
-        label_mask = predict_cell_segmentation(img, predictor)
+        label_mask, z_slice_in_focus = predict_cell_segmentation(img, predictor)
 
+        # Read the input images at highest resolution for conversion to nrrd
         full_res_img = read(file)
 
         # Resample the label mask to original image size in X and Y
@@ -215,16 +218,13 @@ def main(argv=None):
             0,
             sitk.sitkUInt16,
         )
-        # full_res_label_mask.SetOrigin(full_res_img.GetOrigin()[:2])
 
         # Paste the label mask in Z slice.
         full_res_label_mask_3d = sitk.Image(full_res_img.GetSize(), sitk.sitkUInt16)
         full_res_label_mask_3d.CopyInformation(full_res_img)
-        full_res_label_mask_3d[:, :, get_z_slice_index_in_focus(full_res_img)] = (
-            full_res_label_mask
-        )
+        full_res_label_mask_3d[:, :, z_slice_in_focus] = full_res_label_mask
 
-        # Save the input images at highest resolution and the label masks for visualization
+        # Save the original image and label mask at the highest resolution for visualization purposes.
         sitk.WriteImage(
             full_res_img,
             str(pathlib.Path(args.output_dir) / (pathlib.Path(file).stem + ".nrrd")),
@@ -241,8 +241,9 @@ def main(argv=None):
         stats = sitk.LabelShapeStatisticsImageFilter()
         stats.Execute(label_mask)
 
-        df.loc[i, "predicted_num_cells"] = len(stats.GetLabels())
+        predicted_num_cells.append(len(stats.GetLabels()))
 
+    df["automated cell count"] = predicted_num_cells
     df.to_csv(args.input_csv_path, index=False)
 
 
