@@ -1,0 +1,10 @@
+name: cell_prediction
+
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - cellpose
+    - scikit-image
+    - pandas
+    - SimpleITK

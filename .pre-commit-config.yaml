@@ -1,0 +1,28 @@
+# .pre-commit-config.yaml
+# for details see https://pre-commit.com
+# for list of available hooks see https://pre-commit.com/hooks.html
+#
+# Preclude commits that do not conform to various criteria.
+
+fail_fast: true
+
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v5.0.0
+  hooks: # check aws credentials and private key files, json and yml validity
+   - id: detect-aws-credentials
+     args: ['--allow-missing-credentials'] # allow hook to pass when no credentials are detected
+   - id: detect-private-key
+   - id: check-json
+   - id: check-yaml
+- repo: https://github.com/psf/black
+  rev: 25.1.0
+  hooks: # check conformance to black formatting
+   - id: black 
+     args: ['--check'] # if run without arguments, will fail and will format the files
+- repo: https://github.com/pycqa/flake8
+  rev: 7.2.0
+  hooks: # check conformance to PEP8, flake8 formatting
+   - id: flake8
+
+

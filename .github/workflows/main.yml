@@ -1,0 +1,35 @@
+name: pre-commit tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  # Enable manual running of workflow, so we can force execution
+  workflow_dispatch:
+
+jobs:
+  # The specific pre-commit tests configurations are found in
+  # the .pre-commit-config.yaml file at the root of the repository
+  preliminary_test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.10
+    - name: set PY (hash of installed Python version)
+      run: echo "PY=$(python -VV | sha256sum | cut -d' ' -f1)" >> $GITHUB_ENV
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/pre-commit
+        key: pre-commit|${{ env.PY }}|${{ hashFiles('.pre-commit-config.yaml') }}
+    - name: Run pre-commit tests
+      run: |
+        pip install pre-commit
+        pre-commit run --all-files
