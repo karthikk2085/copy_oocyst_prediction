@@ -1,4 +1,4 @@
-cellpose=4.0.4
+cellpose==4.0.4
 scikit-image
 pandas
 SimpleITK

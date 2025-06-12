@@ -1,10 +1,10 @@
-name: cell_prediction
+name: oocyst_counting
 
 dependencies:
   - python=3.10
   - pip
   - pip:
-    - cellpose=4.0.4
+    - cellpose==4.0.4
     - scikit-image
     - pandas
     - SimpleITK
