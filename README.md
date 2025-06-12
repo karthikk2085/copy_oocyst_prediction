@@ -10,7 +10,7 @@ pip install -r requirements.txt
 
 ## Usage
 ```
-python predict_cells.py input.csv output_dir
+python predict_cells.py inputs.csv output_dir
 ```
 
 Required Arguments:
