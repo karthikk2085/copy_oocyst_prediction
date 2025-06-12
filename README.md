@@ -1,6 +1,6 @@
-# Cellpose prediction
+# Oocyst prediction
 
-This script performs cell segmentation on 3D microscopy images stored in Imaris (.ims) format using Cellpose, identifying the most in-focus Z-slice and predicting on that 2D image.
+This script performs cell segmentation on 3D microscopy images stored in Imaris (.ims) format using [Cellpose](https://www.cellpose.org/), identifying the most in-focus Z-slice and predicting on that 2D image.
 
 ## Installation
 
