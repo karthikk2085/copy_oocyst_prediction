@@ -13,16 +13,8 @@ from functools import partial
 Script to predict number of cells from a given list of files in an input csv
 file with column name 'file'.
 
-This script reads metadata from a tab-separated CSV file containing acquisition
-details (e.g., tile positions, channels, spacing, filenames), constructs 3D tile
-volumes per channel for each (X, Y) position in a well, and registers overlapping
-tiles into a single montage. The script saves the generated montage in the user
-given output directory. It also saves the tile volumes and transforms in the
-output directory using the format {well_name}_{row}_{col}.nrrd/.tfm, where
-well_name is the well identifier and row and col indicate the tile's grid position.
-These files, generated during montage registration, are saved if the optional
---save_registration_info flag is provided.
-
+This script performs cell segmentation on 3D microscopy images stored in Imaris (.ims)
+format using Cellpose, identifying the most in-focus Z-slice and predicting on that 2D image.
 """
 
 
