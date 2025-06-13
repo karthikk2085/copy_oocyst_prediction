@@ -37,6 +37,6 @@ filename.nrrd: Original image at highest resolution.
 
 filename_seg.nrrd: Predicted label mask (3D with 2D mask inserted at Z). 
 
-Input CSV is updated with a new column predicted_num_cells.
+Input CSV is updated with a new column "automated cell count".
     
 To visualize the segmentations, open filename.nrrd and filename_seg.nrrd using [ITK-SNAP](https://www.itksnap.org/)
