@@ -197,54 +197,61 @@ def main(argv=None):
 
     predicted_num_cells = []
     for i, file in enumerate(df["file"]):
-        # Obtain the image at the target resolution
-        img = read_image(file, target_spacing=args.target_spacing)
+        try:
+            # Obtain the image at the target resolution
+            img = read_image(file, target_spacing=args.target_spacing)
 
-        # Predict cells on the obtained image
-        label_mask, z_slice_in_focus = predict_cell_segmentation(img, predictor)
+            # Predict cells on the obtained image
+            label_mask, z_slice_in_focus = predict_cell_segmentation(img, predictor)
 
-        # Read the input images at highest resolution for conversion to nrrd
-        full_res_img = read(file)
+            # Read the input images at highest resolution for conversion to nrrd
+            full_res_img = read(file)
 
-        # Resample the label mask to original image size in X and Y
-        full_res_label_mask = sitk.Resample(
-            label_mask,
-            full_res_img.GetSize()[:2],
-            sitk.Transform(),
-            sitk.sitkNearestNeighbor,
-            full_res_img.GetOrigin()[:2],
-            full_res_img.GetSpacing()[:2],
-            label_mask.GetDirection(),
-            0,
-            sitk.sitkUInt16,
-        )
+            # Resample the label mask to original image size in X and Y
+            full_res_label_mask = sitk.Resample(
+                label_mask,
+                full_res_img.GetSize()[:2],
+                sitk.Transform(),
+                sitk.sitkNearestNeighbor,
+                full_res_img.GetOrigin()[:2],
+                full_res_img.GetSpacing()[:2],
+                label_mask.GetDirection(),
+                0,
+                sitk.sitkUInt16,
+            )
 
-        # Paste the label mask in Z slice.
-        full_res_label_mask_3d = sitk.Image(full_res_img.GetSize(), sitk.sitkUInt16)
-        full_res_label_mask_3d.CopyInformation(full_res_img)
-        full_res_label_mask_3d[:, :, z_slice_in_focus] = full_res_label_mask
+            # Paste the label mask in Z slice.
+            full_res_label_mask_3d = sitk.Image(full_res_img.GetSize(), sitk.sitkUInt16)
+            full_res_label_mask_3d.CopyInformation(full_res_img)
+            full_res_label_mask_3d[:, :, z_slice_in_focus] = full_res_label_mask
 
-        # Save the original image and label mask at the highest resolution for visualization purposes.
-        sitk.WriteImage(
-            full_res_img,
-            str(pathlib.Path(args.output_dir) / (pathlib.Path(file).stem + ".nrrd")),
-        )
+            # Save the original image and label mask at the highest resolution for visualization purposes.
+            sitk.WriteImage(
+                full_res_img,
+                str(
+                    pathlib.Path(args.output_dir) / (pathlib.Path(file).stem + ".nrrd")
+                ),
+            )
 
-        sitk.WriteImage(
-            full_res_label_mask_3d,
-            str(
-                pathlib.Path(args.output_dir) / (pathlib.Path(file).stem + "_seg.nrrd")
-            ),
-        )
+            sitk.WriteImage(
+                full_res_label_mask_3d,
+                str(
+                    pathlib.Path(args.output_dir)
+                    / (pathlib.Path(file).stem + "_seg.nrrd")
+                ),
+            )
 
-        # Get no. of labels from the label mask
-        stats = sitk.LabelShapeStatisticsImageFilter()
-        stats.Execute(label_mask)
+            # Get no. of labels from the label mask
+            stats = sitk.LabelShapeStatisticsImageFilter()
+            stats.Execute(label_mask)
 
-        predicted_num_cells.append(len(stats.GetLabels()))
-
-    df["automated cell count"] = predicted_num_cells
+            predicted_num_cells.append(len(stats.GetLabels()))
+        except Exception as e:
+            print(f"Error occurred while processing: {e}", file=sys.stderr)
+            predicted_num_cells.append("")
+    df["automated oocyst count"] = predicted_num_cells
     df.to_csv(args.input_csv_path, index=False)
+    return 0
 
 
 if __name__ == "__main__":
