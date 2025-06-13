@@ -143,7 +143,8 @@ def predict_cell_segmentation(img, predictor):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Predict cells on imaris file using cellpose."
+        description="Segment oocysts using cellpose and count the number of instances.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "input_csv_path",
@@ -172,7 +173,7 @@ def main(argv=None):
     parser.add_argument(
         "--cellprob_threshold",
         default=0.0,
-        help="Determines the probability that a detected object is a cell. The deault is 0.0",
+        help="Determines the probability that a detected object is a cell.",
     )
     parser.add_argument(
         "--tile_norm_blocksize",
@@ -196,7 +197,6 @@ def main(argv=None):
 
     predicted_num_cells = []
     for i, file in enumerate(df["file"]):
-
         # Obtain the image at the target resolution
         img = read_image(file, target_spacing=args.target_spacing)
 
