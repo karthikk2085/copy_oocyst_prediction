@@ -5,7 +5,6 @@ import pandas as pd
 import SimpleITK as sitk
 from sitk_ims_file_io import read, read_metadata
 from cellpose import models
-from skimage.segmentation import clear_border
 import argparse
 from functools import partial
 
@@ -133,8 +132,17 @@ def predict_cell_segmentation(img, predictor):
     # Predict on the identified slice
     masks, flows, styles = predictor(img_array)
 
-    # Post process the predicted mask
-    filtered_mask = sitk.GetImageFromArray(clear_border(masks).astype(np.uint16))
+    # Remove objects touching the image border, they are partial segmentations so not counted.
+    image_boundary_arr = np.pad(
+        np.zeros([sz - 2 for sz in masks.shape], dtype=np.uint8),
+        pad_width=1,
+        mode="constant",
+        constant_values=1,
+    )
+    boundary_values_arr = np.multiply(masks, image_boundary_arr)
+    masks[np.isin(masks, np.unique(boundary_values_arr[boundary_values_arr != 0]))] = 0
+    filtered_mask = sitk.GetImageFromArray(masks.astype(np.uint16))
+
     filtered_mask.SetOrigin(img.GetOrigin()[:2])
     filtered_mask.SetSpacing(img.GetSpacing()[:2])
 
