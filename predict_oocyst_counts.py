@@ -248,14 +248,11 @@ def main(argv=None):
                 )
             else:
                 print(
-                    str(
-                        pathlib.Path(args.output_dir)
-                        / (pathlib.Path(file).stem + ".nrrd")
-                    )
-                    + " already exists. "
-                    + "Skipping overwriting the file for "
+                    "Skipping overwriting the file for "
                     + file
-                    + " as they have the same filenames."
+                    + " as the filename with "
+                    + pathlib.Path(file).stem
+                    + " already exists in the output directory."
                 )
                 predicted_num_cells.append("")
                 continue
