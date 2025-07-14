@@ -253,7 +253,9 @@ def main(argv=None):
                         / (pathlib.Path(file).stem + ".nrrd")
                     )
                     + " already exists. "
-                    + "Skipping overwriting the file."
+                    + "Skipping overwriting the file for "
+                    + file
+                    + " as they have the same filenames."
                 )
                 predicted_num_cells.append("")
                 continue
