@@ -234,12 +234,28 @@ def main(argv=None):
             full_res_label_mask_3d[:, :, z_slice_in_focus] = full_res_label_mask
 
             # Save the original image and label mask at the highest resolution for visualization purposes.
-            sitk.WriteImage(
-                full_res_img,
-                str(
-                    pathlib.Path(args.output_dir) / (pathlib.Path(file).stem + ".nrrd")
-                ),
-            )
+            # Avoid overwriting of files with same filenames
+
+            if not (
+                pathlib.Path(args.output_dir) / (pathlib.Path(file).stem + ".nrrd")
+            ).exists():
+                sitk.WriteImage(
+                    full_res_img,
+                    str(
+                        pathlib.Path(args.output_dir)
+                        / (pathlib.Path(file).stem + ".nrrd")
+                    ),
+                )
+            else:
+                print(
+                    "Skipping overwriting the file for "
+                    + file
+                    + " as the filename with "
+                    + pathlib.Path(file).stem
+                    + " already exists in the output directory."
+                )
+                predicted_num_cells.append("")
+                continue
 
             sitk.WriteImage(
                 full_res_label_mask_3d,
