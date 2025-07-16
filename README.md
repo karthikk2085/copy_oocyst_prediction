@@ -2,10 +2,16 @@
 
 This script performs cell segmentation on 3D microscopy images stored in Imaris (.ims) format using [Cellpose](https://www.cellpose.org/), identifying the most in-focus Z-slice and predicting on that 2D image.
 
-## Installation
+## Installation using python
 
 ```
 pip install -r requirements.txt
+```
+
+or minconda
+
+```
+conda env create -f environment.yml
 ```
 
 ## Usage
