@@ -10,7 +10,8 @@ from functools import partial
 
 """
 Script to predict number of cells from a given list of files in an input csv
-file with column name 'file'.
+file with column name 'file'. File paths are either absolute or relative to
+the location of the input csv file.
 
 This script performs cell segmentation on 3D microscopy images stored in Imaris (.ims)
 format using Cellpose (V3), identifying the most in-focus Z-slice and predicting on that 2D image.
@@ -160,7 +161,8 @@ def main(argv=None):
             x,
             required_columns=["file"],
         ),
-        help="Input csv file containing file names with column 'file'",
+        help="Input csv file containing file names with column titled 'file'."
+        + "These are either absolute or paths relative to the csv file location.",
     )
     parser.add_argument(
         "output_dir",
@@ -204,7 +206,12 @@ def main(argv=None):
     )
 
     predicted_num_cells = []
+    csv_absolute_path = pathlib.Path(args.input_csv_path).absolute().parent
     for i, file in enumerate(df["file"]):
+        # File names listed in the csv input file are either absolute
+        # paths or relative to the csv location.
+        if not pathlib.Path(file).is_file():
+            file = str((csv_absolute_path / file).resolve())
         try:
             # Obtain the image at the target resolution
             img = read_image(file, target_spacing=args.target_spacing)
