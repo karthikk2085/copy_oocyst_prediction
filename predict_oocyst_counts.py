@@ -17,6 +17,10 @@ This script performs cell segmentation on 3D microscopy images stored in Imaris 
 format using Cellpose (V3), identifying the most in-focus Z-slice and predicting on that 2D image.
 """
 
+# Mean diameter of oocysts in pixels where cellpose performs well.
+# Cellpose expects the cell diameter to be about 10 pixels.
+DESIRED_DIAMETER_OF_OOCYSTS_IN_PIXELS = 10
+
 
 def csv_path(path, required_columns={}):
     """
@@ -165,15 +169,14 @@ def main(argv=None):
         + "These are either absolute or paths relative to the csv file location.",
     )
     parser.add_argument(
+        "average_physical_diameter_size_of_oocysts",
+        type=float,
+        help="Average physical diameter size of oocysts in nanometers.",
+    )
+    parser.add_argument(
         "output_dir",
         type=dir_path,
         help="Output directory to save the label masks.",
-    )
-    parser.add_argument(
-        "--target_spacing",
-        type=tuple,
-        default=(3.63, 3.63),
-        help="Target spacing to obtain the image resolution from the imaris file. ",
     )
     parser.add_argument(
         "--flow_threshold",
@@ -213,8 +216,13 @@ def main(argv=None):
         if not pathlib.Path(file).is_file():
             file = str((csv_absolute_path / file).resolve())
         try:
-            # Obtain the image at the target resolution
-            img = read_image(file, target_spacing=args.target_spacing)
+            target_spacing = [
+                args.average_physical_diameter_size_of_oocysts
+                / DESIRED_DIAMETER_OF_OOCYSTS_IN_PIXELS
+            ] * 2
+
+            # Obtain the image at the resolution where the diameter of oocysts is known
+            img = read_image(file, target_spacing=target_spacing)
 
             # Predict cells on the obtained image
             label_mask, z_slice_in_focus = predict_cell_segmentation(img, predictor)
