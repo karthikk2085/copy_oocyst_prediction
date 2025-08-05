@@ -208,11 +208,6 @@ def main(argv=None):
     predicted_num_cells = []
     csv_absolute_path = pathlib.Path(args.input_csv_path).absolute().parent
 
-    # Check if 'slice in focus' column is given
-    columns_to_use = ["file"]
-    if "slice_in_focus" in df.columns:
-        columns_to_use += ["slice_in_focus"]
-
     target_spacing = [
         args.average_physical_diameter_size_of_oocysts
         / DESIRED_DIAMETER_OF_OOCYSTS_IN_PIXELS
@@ -224,7 +219,7 @@ def main(argv=None):
 
         # File names listed in the csv input file are either absolute
         # paths or relative to the csv location.
-        if not pathlib.Path().is_file():
+        if not pathlib.Path(file).is_file():
             file = str((csv_absolute_path / file).resolve())
         try:
 
