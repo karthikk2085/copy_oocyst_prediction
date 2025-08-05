@@ -117,7 +117,7 @@ def read_image(file, target_spacing):
     return img
 
 
-def predict_cell_segmentation(img, predictor):
+def predict_cell_segmentation(img, slice_in_focus, predictor):
     """
     Perform cell segmentation on the most in-focus Z slice of a 3D image.
 
@@ -130,9 +130,7 @@ def predict_cell_segmentation(img, predictor):
     - SimpleITK.Image: 2D label mask image.
     """
 
-    # Identify z slice
-    z_slice_in_focus = get_z_slice_index_in_focus(img)
-    img_array = sitk.GetArrayFromImage(img[:, :, z_slice_in_focus])
+    img_array = sitk.GetArrayFromImage(img[:, :, slice_in_focus])
 
     # Predict on the identified slice
     masks, flows, styles = predictor(img_array)
@@ -151,7 +149,7 @@ def predict_cell_segmentation(img, predictor):
     filtered_mask.SetOrigin(img.GetOrigin()[:2])
     filtered_mask.SetSpacing(img.GetSpacing()[:2])
 
-    return filtered_mask, z_slice_in_focus
+    return filtered_mask
 
 
 def main(argv=None):
@@ -193,7 +191,6 @@ def main(argv=None):
         default=0,
         help="Determines the size of blocks used for normalizing the image. ",
     )
-
     args = parser.parse_args()
 
     df = pd.read_csv(args.input_csv_path)
@@ -210,22 +207,39 @@ def main(argv=None):
 
     predicted_num_cells = []
     csv_absolute_path = pathlib.Path(args.input_csv_path).absolute().parent
-    for i, file in enumerate(df["file"]):
+
+    # Check if 'slice in focus' column is given
+    columns_to_use = ["file"]
+    if "slice_in_focus" in df.columns:
+        columns_to_use += ["slice_in_focus"]
+
+    target_spacing = [
+        args.average_physical_diameter_size_of_oocysts
+        / DESIRED_DIAMETER_OF_OOCYSTS_IN_PIXELS
+    ] * 2
+
+    for i in range(len(df)):
+        x = df.iloc[i]
+        file = x["file"]
+
         # File names listed in the csv input file are either absolute
         # paths or relative to the csv location.
-        if not pathlib.Path(file).is_file():
+        if not pathlib.Path().is_file():
             file = str((csv_absolute_path / file).resolve())
         try:
-            target_spacing = [
-                args.average_physical_diameter_size_of_oocysts
-                / DESIRED_DIAMETER_OF_OOCYSTS_IN_PIXELS
-            ] * 2
 
-            # Obtain the image at the resolution where the diameter of oocysts is known
             img = read_image(file, target_spacing=target_spacing)
 
-            # Predict cells on the obtained image
-            label_mask, z_slice_in_focus = predict_cell_segmentation(img, predictor)
+            # Slice in focus should be overriden by csv values if the column values exists,
+            # otherwise the computed value for slice in focus within the volume is taken for input.
+            if "slice_in_focus" in x and pd.notnull(x["slice_in_focus"]):
+                z_slice_in_focus = int(x["slice_in_focus"])
+            else:
+                # Compute slice in focus
+                z_slice_in_focus = get_z_slice_index_in_focus(img)
+
+            # Predict cells on the image at the desired resolution and z slice
+            label_mask = predict_cell_segmentation(img, z_slice_in_focus, predictor)
 
             # Read the input images at highest resolution for conversion to nrrd
             full_res_img = read(file)
