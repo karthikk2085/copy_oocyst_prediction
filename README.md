@@ -34,8 +34,8 @@ python predict_oocyst_counts.py input.csv cell_diameter_in_physical_units output
 
 #### Required Arguments:
 
-* input.csv: CSV file with a column titled *file* where each row lists a path to an image file.
-* cell_diameter_in_physical_units: Average cell diameter in physical units (nm).
+* input.csv: CSV file with a column titled *file* where each row lists a path to an image file and optionally provide column titled *slice_in_focus*  where it represents zero based index of the z slice which should be used instead of the automatically identified slice. If the column does not exist or the entry is empty, the program automatically identifies this z slice.
+* cell_diameter_in_physical_units: Average cell diameter in physical units (micrometers).
 * output_dir: Directory to which image and segmentation are written. 
 
 #### Optional Arguments:
