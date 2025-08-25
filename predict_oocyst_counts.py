@@ -7,6 +7,7 @@ from sitk_ims_file_io import read, read_metadata
 from cellpose import models
 import argparse
 from functools import partial
+from datetime import datetime
 
 """
 Script to predict number of cells from a given list of files in an input csv
@@ -57,6 +58,46 @@ def dir_path(path):
         raise argparse.ArgumentTypeError(
             f"Invalid argument ({path}), not a directory path or directory does not exist."
         )
+
+
+def file_or_dir(path):
+    p = pathlib.Path(path)
+    if p.is_file() or p.is_dir():
+        return p
+    else:
+        raise argparse.ArgumentTypeError(
+            f"Invalid argument ({path}), not a file or directory."
+        )
+
+
+def create_input_csv(input_csv_path_or_dir):
+    """
+    Create a csv file in the given directory with a column titled 'file' and entries are all
+    the ims files in the directory. File name is timestamped to avoid overwriting.
+    Returns the path to the created csv file.
+    """
+    ims_files = []
+    # Create a dataframe with all ims files in the directory
+    for f in input_csv_path_or_dir.glob("*"):
+        try:
+            # Read the first pixel in the first channel of the input file, ensures the file is a
+            # valid ims file. Will fail if not an ims file (another file type or a directory
+            # returned by glob).
+            read(
+                f,
+                channel_index=0,
+                sub_ranges=[range(0, 1), range(0, 1), range(0, 1)],
+            )
+            ims_files.append(f.name)
+        except Exception:
+            pass
+    df = pd.DataFrame(ims_files, columns=["file"])
+    output_path = (
+        input_csv_path_or_dir
+        / f"{datetime.now().strftime('%Y_%m_%d_%H_%M_%S')}_oocyst_counts.csv"
+    )
+    df.to_csv(output_path, index=False)
+    return output_path
 
 
 def get_z_slice_index_in_focus(image_3d):
@@ -158,13 +199,10 @@ def main(argv=None):
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "input_csv_path",
-        type=lambda x: csv_path(
-            x,
-            required_columns=["file"],
-        ),
-        help="Input csv file containing file names with column titled 'file'."
-        + "These are either absolute or paths relative to the csv file location.",
+        "input_csv_path_or_dir",
+        type=file_or_dir,
+        help="Input csv file containing file names with column titled 'file' or a directory with imaris files."
+        + "The file paths in the csv are either absolute or paths relative to the csv file location.",
     )
     parser.add_argument(
         "average_physical_diameter_size_of_oocysts",
@@ -193,7 +231,13 @@ def main(argv=None):
     )
     args = parser.parse_args()
 
-    df = pd.read_csv(args.input_csv_path)
+    # Read the input csv file or create one if a directory is given
+    if args.input_csv_path_or_dir.is_file():
+        input_csv_path = csv_path(args.input_csv_path_or_dir, required_columns=["file"])
+    else:  # this is a directory (argparse ensured this is a dir or file)
+        input_csv_path = create_input_csv(args.input_csv_path_or_dir)
+
+    df = pd.read_csv(input_csv_path)
 
     # Load the model
     model = models.CellposeModel(gpu=True)
@@ -206,7 +250,7 @@ def main(argv=None):
     )
 
     predicted_num_cells = []
-    csv_absolute_path = pathlib.Path(args.input_csv_path).absolute().parent
+    csv_absolute_path = input_csv_path.absolute().parent
 
     target_spacing = [
         args.average_physical_diameter_size_of_oocysts
@@ -222,7 +266,6 @@ def main(argv=None):
         if not pathlib.Path(file).is_file():
             file = str((csv_absolute_path / file).resolve())
         try:
-
             img = read_image(file, target_spacing=target_spacing)
 
             # Slice in focus should be overriden by csv values if the column values exists,
@@ -298,7 +341,7 @@ def main(argv=None):
             print(f"Error occurred while processing: {e}", file=sys.stderr)
             predicted_num_cells.append("")
     df["automated oocyst count"] = predicted_num_cells
-    df.to_csv(args.input_csv_path, index=False)
+    df.to_csv(input_csv_path, index=False)
     return 0
 
 

@@ -24,22 +24,29 @@ conda env create -f environment.yml
 ### predict_oocyst_counts.py
 
 
-Count the number of live oocysts in a 3D microscopy image where only a single 2D in-focus slice is analyzed. Input is expected to be in Imaris (.ims) format with cell segmentation in the 2D in-focus slice done using [Cellpose](https://www.cellpose.org/). Estimated oocyst counts are added to the input csv file. The original full resolution image and segmentation are written to a user specified output directory in NRRD format, enabling human oversight of the cell count results. Image and segmentation overlay are readily viewable using [ITK-SNAP](https://www.itksnap.org/).
+Count the number of oocysts in a 3D widefield microscopy image after [deconvolution](https://pubmed.ncbi.nlm.nih.gov/16080270/) where only a single 2D in-focus slice is analyzed. Input is expected to be in Imaris (.ims) format with cell segmentation done using [Cellpose](https://www.cellpose.org/).
+
+Estimated oocyst counts are written to a csv file. If the input was a csv file the counts will be added to that file. If the input was a directory the counts will be added to a uniquely named csv file in that directory. The original full resolution image and segmentation are written to a user specified output directory in NRRD format, enabling human oversight of the cell count results. Image and segmentation overlay are readily viewable using [ITK-SNAP](https://www.itksnap.org/).
 
 #### Usage:
 
 ```
 python predict_oocyst_counts.py input.csv cell_diameter_in_physical_units output_dir
 ```
+or
+```
+python predict_oocyst_counts.py input_dir cell_diameter_in_physical_units output_dir
+```
 
-#### Required Arguments:
+
+#### Arguments:
 
 * input.csv: CSV file with a column titled *file* where each row lists a path to an image file and optionally provide column titled *slice_in_focus*  where it represents zero based index of the z slice which should be used instead of the automatically identified slice. If the column does not exist or the entry is empty, the program automatically identifies this z slice.
+* input_dir: instead of a csv file, provide a directory containing imaris files.
 * cell_diameter_in_physical_units: Average cell diameter in physical units (micrometers).
 * output_dir: Directory to which image and segmentation are written. 
 
-#### Optional Arguments:
-
+#### Optional, cellpose, arguments:
 
 * --flow_threshold: Maximum allowed error in Cellpose flows.
 * --cellprob_threshold: Probability threshold to consider a region a cell.
