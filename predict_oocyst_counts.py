@@ -8,6 +8,8 @@ from cellpose import models
 import argparse
 from functools import partial
 from datetime import datetime
+import subprocess
+import tempfile
 
 """
 Script to predict number of cells from a given list of files in an input csv
@@ -153,6 +155,7 @@ def read_image(file, target_spacing):
         resolution_index=find_nearest_spacing_index(
             metadata["spacings"], target_spacing
         ),
+        channel_index=0,
     )
 
     return img
@@ -193,6 +196,59 @@ def predict_cell_segmentation(img, slice_in_focus, predictor):
     return filtered_mask
 
 
+def run_cellpose(image=None, mask_file=None):
+    import pathlib
+    from cellpose.gui.gui import MainW
+    from cellpose.gui import guiparts
+    from cellpose.gui.io import _load_masks
+    from cellpose.io import logger_setup
+    from cellpose.utils import download_url_to_file
+    from qtpy import QtGui, QtCore
+    from qtpy.QtWidgets import QApplication
+    import warnings
+    import sys
+
+    logger, log_file = logger_setup()
+    # Always start by initializing Qt (only once per application)
+    warnings.filterwarnings("ignore")
+    app = QApplication(sys.argv)
+    icon_path = pathlib.Path.home().joinpath(".cellpose", "logo.png")
+    guip_path = pathlib.Path.home().joinpath(".cellpose", "cellposeSAM_gui.png")
+    if not icon_path.is_file():
+        cp_dir = pathlib.Path.home().joinpath(".cellpose")
+        cp_dir.mkdir(exist_ok=True)
+        print("downloading logo")
+        download_url_to_file(
+            "https://www.cellpose.org/static/images/cellpose_transparent.png",
+            icon_path,
+            progress=True,
+        )
+    if not guip_path.is_file():
+        print("downloading help window image")
+        download_url_to_file(
+            "https://www.cellpose.org/static/images/cellposeSAM_gui.png",
+            guip_path,
+            progress=True,
+        )
+    icon_path = str(icon_path.resolve())
+    app_icon = QtGui.QIcon()
+    app_icon.addFile(icon_path, QtCore.QSize(16, 16))
+    app_icon.addFile(icon_path, QtCore.QSize(24, 24))
+    app_icon.addFile(icon_path, QtCore.QSize(32, 32))
+    app_icon.addFile(icon_path, QtCore.QSize(48, 48))
+    app_icon.addFile(icon_path, QtCore.QSize(64, 64))
+    app_icon.addFile(icon_path, QtCore.QSize(256, 256))
+    app.setWindowIcon(app_icon)
+    app.setStyle("Fusion")
+    app.setPalette(guiparts.DarkPalette())
+    main_window = MainW(image=image, logger=logger)
+
+    _load_masks(main_window, filename=mask_file)
+    main_window.RGBDropDown.setCurrentIndex(4)
+    ret = app.exec_()
+    sys.exit(ret)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Segment oocysts using cellpose and count the number of instances.",
@@ -228,6 +284,11 @@ def main(argv=None):
         "--tile_norm_blocksize",
         default=0,
         help="Determines the size of blocks used for normalizing the image. ",
+    )
+    parser.add_argument(
+        "--manual_segmentation",
+        action="store_true",
+        help="If set, the GUI will be opened for manual segmentation correction.",
     )
     args = parser.parse_args()
 
@@ -280,7 +341,7 @@ def main(argv=None):
             label_mask = predict_cell_segmentation(img, z_slice_in_focus, predictor)
 
             # Read the input images at highest resolution for conversion to nrrd
-            full_res_img = read(file)
+            full_res_img = read(file, channel_index=0)
 
             # Resample the label mask to original image size in X and Y
             full_res_label_mask = sitk.Resample(
@@ -294,6 +355,44 @@ def main(argv=None):
                 0,
                 sitk.sitkUInt16,
             )
+
+            if args.manual_segmentation:
+                # Temporarily write images to temporary directory to be opened in GUI for manual correction
+
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    full_res_org_img_filename = str(
+                        pathlib.Path(tmpdirname) / "original_image.tiff"
+                    )
+                    full_label_mask_filename = str(
+                        pathlib.Path(tmpdirname) / "original_image_masks.tiff"
+                    )
+                    full_label_mask_npy_filename = str(
+                        pathlib.Path(tmpdirname) / "original_image_seg.npy"
+                    )
+                    sitk.WriteImage(
+                        sitk.Cast(
+                            sitk.RescaleIntensity(full_res_img[:, :, z_slice_in_focus]),
+                            sitk.sitkUInt8,
+                        ),
+                        full_res_org_img_filename,
+                    )
+                    sitk.WriteImage(full_res_label_mask, full_label_mask_filename)
+                    # Open the GUI for manual correction
+                    subprocess.run(
+                        [
+                            sys.executable,
+                            "-c",
+                            f"from predict_oocyst_counts import run_cellpose; \
+                            run_cellpose(image='{full_res_org_img_filename}',mask_file='{full_label_mask_filename}')",
+                        ]
+                    )
+
+                    # Read the modified mask image
+                    full_res_label_mask = sitk.GetImageFromArray(
+                        np.load(full_label_mask_npy_filename, allow_pickle=True).item()[
+                            "masks"
+                        ]
+                    )
 
             # Paste the label mask in Z slice.
             full_res_label_mask_3d = sitk.Image(full_res_img.GetSize(), sitk.sitkUInt16)
@@ -334,8 +433,7 @@ def main(argv=None):
 
             # Get no. of labels from the label mask
             stats = sitk.LabelShapeStatisticsImageFilter()
-            stats.Execute(label_mask)
-
+            stats.Execute(full_res_label_mask)
             predicted_num_cells.append(len(stats.GetLabels()))
         except Exception as e:
             print(f"Error occurred while processing: {e}", file=sys.stderr)

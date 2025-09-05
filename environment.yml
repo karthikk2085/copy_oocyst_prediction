@@ -4,7 +4,9 @@ dependencies:
   - python=3.10
   - pip
   - pip:
-    - cellpose==4.0.4
+    - numpy<2
+    - cellpose[gui]==4.0.4
     - pandas
     - SimpleITK
     - h5py
+    - PyQt6==6.8.1
