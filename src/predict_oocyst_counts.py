@@ -3,13 +3,15 @@ import sys
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
-from sitk_ims_file_io import read, read_metadata
+from src.sitk_ims_file_io import read, read_metadata
 from cellpose import models
 import argparse
 from functools import partial
 from datetime import datetime
 import subprocess
 import tempfile
+import onnxruntime as ort
+import src.utils as utils
 
 """
 Script to predict number of cells from a given list of files in an input csv
@@ -23,43 +25,6 @@ format using Cellpose (V3), identifying the most in-focus Z-slice and predicting
 # Mean diameter of oocysts in pixels where cellpose performs well.
 # Cellpose expects the cell diameter to be about 10 pixels.
 DESIRED_DIAMETER_OF_OOCYSTS_IN_PIXELS = 10
-
-
-def csv_path(path, required_columns={}):
-    """
-    Define the csv_path type for use with argparse. Checks
-    that the given path string is a path to a csv file and that the
-    header of the csv file contains the required columns.
-    """
-    p = pathlib.Path(path)
-    required_columns = set(required_columns)
-    if p.is_file():
-        try:  # only read the csv header
-            expected_columns_exist = required_columns.issubset(
-                set(pd.read_csv(path, nrows=0).columns.tolist())
-            )
-            if expected_columns_exist:
-                return p
-            else:
-                raise argparse.ArgumentTypeError(
-                    f"Invalid argument ({path}), does not contain all expected columns."
-                )
-        except UnicodeDecodeError:
-            raise argparse.ArgumentTypeError(
-                f"Invalid argument ({path}), not a csv file."
-            )
-    else:
-        raise argparse.ArgumentTypeError(f"Invalid argument ({path}), not a file.")
-
-
-def dir_path(path):
-    p = pathlib.Path(path)
-    if p.is_dir():
-        return p
-    else:
-        raise argparse.ArgumentTypeError(
-            f"Invalid argument ({path}), not a directory path or directory does not exist."
-        )
 
 
 def file_or_dir(path):
@@ -188,12 +153,85 @@ def predict_cell_segmentation(img, slice_in_focus, predictor):
     )
     boundary_values_arr = np.multiply(masks, image_boundary_arr)
     masks[np.isin(masks, np.unique(boundary_values_arr[boundary_values_arr != 0]))] = 0
+
+    num_unique_labels = np.unique(masks[masks != 0])
+
     filtered_mask = sitk.GetImageFromArray(masks.astype(np.uint16))
 
     filtered_mask.SetOrigin(img.GetOrigin()[:2])
     filtered_mask.SetSpacing(img.GetSpacing()[:2])
 
-    return filtered_mask
+    return filtered_mask, num_unique_labels
+
+
+def save_live_and_dead_masks(
+    label_mask,
+    image,
+    live_and_dead_classifier,
+    threshold_for_live_and_dead,
+    live_seg_filename,
+    dead_seg_filename,
+):
+    """
+    Predict the live and dead oocysts within the cellpose predicted label mask and save the live
+    and dead segmentation masks from the obtained ooocyst-wise predictions.
+    Parameters:
+    - label_mask (SimpleITK.Image): multi label mask image predicted by cellpose at the full resolution.
+    - image (SimpleITK.Image): Image at full resolution.
+    - live_and_dead_classifier (.onnx): ONNX runtime session for the live/dead classifier.
+    - threshold_for_live_and_dead (float): Threshold for classifying oocysts as live or dead.
+    Returns:
+    - Tuple[int, int]: Counts of live and dead oocysts in the given label mask.
+    """
+    features = utils.compute_label_features(label_mask, image)
+    features_df = pd.DataFrame([features[1] for features in features])
+    object_labels = [feat[0] for feat in features]
+    sess = ort.InferenceSession(live_and_dead_classifier)
+    input_name = sess.get_inputs()[0].name
+
+    meta_data = sess.get_modelmeta().custom_metadata_map
+
+    y_pred_proba = sess.run(None, {input_name: features_df.values.astype(np.float32)})[
+        1
+    ]
+
+    probs_array = np.array([item[1] for item in y_pred_proba])
+
+    try:
+        if threshold_for_live_and_dead is None:
+            threshold = float(meta_data["optimal_threshold"])
+        else:
+            threshold = threshold_for_live_and_dead
+    except Exception as e:
+        print(f"Model does not have any threshold stored in .onnx format: {e}")
+
+    print(f"Values above {threshold} classified as dead oocysts.")
+
+    dead_count = int(np.sum(probs_array >= threshold))
+    live_count = int(np.sum(probs_array < threshold))
+
+    live_mask = sitk.Image(label_mask.GetSize(), sitk.sitkUInt8)
+    dead_mask = sitk.Image(label_mask.GetSize(), sitk.sitkUInt8)
+    live_mask.CopyInformation(label_mask)
+    dead_mask.CopyInformation(label_mask)
+
+    dead_labels = [
+        lbl for lbl, prob in zip(object_labels, probs_array) if prob >= threshold
+    ]
+    live_labels = [
+        lbl for lbl, prob in zip(object_labels, probs_array) if prob < threshold
+    ]
+
+    for lbl in dead_labels:
+        dead_mask = sitk.Or(dead_mask, sitk.Equal(label_mask, lbl) * lbl)
+
+    for lbl in live_labels:
+        live_mask = sitk.Or(live_mask, sitk.Equal(label_mask, lbl) * lbl)
+
+    sitk.WriteImage(live_mask, live_seg_filename)
+    sitk.WriteImage(dead_mask, dead_seg_filename)
+
+    return live_count, dead_count
 
 
 def run_cellpose(image=None, mask_file=None):
@@ -267,7 +305,7 @@ def main(argv=None):
     )
     parser.add_argument(
         "output_dir",
-        type=dir_path,
+        type=utils.dir_path,
         help="Output directory to save the label masks.",
     )
     parser.add_argument(
@@ -290,11 +328,30 @@ def main(argv=None):
         action="store_true",
         help="If set, the GUI will be opened for manual segmentation correction.",
     )
+    parser.add_argument(
+        "--live_dead_classifier",
+        type=lambda x: (
+            pathlib.Path(x)
+            if pathlib.Path(x).is_file()
+            else parser.error(f"File {x} does not exist")
+        ),
+        help="Path to the ONNX model for live/dead classification of oocysts. \
+            If not provided, only oocyst counts will be provided.",
+    )
+    parser.add_argument(
+        "--threshold_for_live_and_dead",
+        type=float,
+        help="Threshold for live/dead classification of oocysts. If not provided, the default value \
+                is part of the classifier weight file.",
+    )
+
     args = parser.parse_args()
 
     # Read the input csv file or create one if a directory is given
     if args.input_csv_path_or_dir.is_file():
-        input_csv_path = csv_path(args.input_csv_path_or_dir, required_columns=["file"])
+        input_csv_path = utils.csv_path(
+            args.input_csv_path_or_dir, required_columns=["file"]
+        )
     else:  # this is a directory (argparse ensured this is a dir or file)
         input_csv_path = create_input_csv(args.input_csv_path_or_dir)
 
@@ -311,6 +368,8 @@ def main(argv=None):
     )
 
     predicted_num_cells = []
+    live_cells = []
+    dead_cells = []
     csv_absolute_path = input_csv_path.absolute().parent
 
     target_spacing = [
@@ -338,7 +397,9 @@ def main(argv=None):
                 z_slice_in_focus = get_z_slice_index_in_focus(img)
 
             # Predict cells on the image at the desired resolution and z slice
-            label_mask = predict_cell_segmentation(img, z_slice_in_focus, predictor)
+            label_mask, num_unique_labels = predict_cell_segmentation(
+                img, z_slice_in_focus, predictor
+            )
 
             # Read the input images at highest resolution for conversion to nrrd
             full_res_img = read(file, channel_index=0)
@@ -382,7 +443,7 @@ def main(argv=None):
                         [
                             sys.executable,
                             "-c",
-                            f"from predict_oocyst_counts import run_cellpose; \
+                            f"from src.predict_oocyst_counts import run_cellpose; \
                             run_cellpose(image='{full_res_org_img_filename}',mask_file='{full_label_mask_filename}')",
                         ]
                     )
@@ -420,25 +481,61 @@ def main(argv=None):
                     + pathlib.Path(file).stem
                     + " already exists in the output directory."
                 )
+
                 predicted_num_cells.append("")
+                if args.live_dead_classifier:
+                    live_cells.append("")
+                    dead_cells.append("")
                 continue
 
-            sitk.WriteImage(
-                full_res_label_mask_3d,
-                str(
-                    pathlib.Path(args.output_dir)
-                    / (pathlib.Path(file).stem + "_seg.nrrd")
-                ),
-            )
+            if not args.live_dead_classifier:
+                sitk.WriteImage(
+                    full_res_label_mask_3d,
+                    str(
+                        pathlib.Path(args.output_dir)
+                        / (pathlib.Path(file).stem + "_seg.nrrd")
+                    ),
+                )
 
-            # Get no. of labels from the label mask
-            stats = sitk.LabelShapeStatisticsImageFilter()
-            stats.Execute(full_res_label_mask)
-            predicted_num_cells.append(len(stats.GetLabels()))
+            predicted_num_cells.append(num_unique_labels)
+
+            if args.live_dead_classifier:
+
+                live_seg_filename = str(
+                    pathlib.Path(args.output_dir)
+                    / (pathlib.Path(file).stem + "_live_seg.nrrd")
+                )
+                dead_seg_filename = str(
+                    pathlib.Path(args.output_dir)
+                    / (pathlib.Path(file).stem + "_dead_seg.nrrd")
+                )
+
+                live_count, dead_count = save_live_and_dead_masks(
+                    full_res_label_mask_3d,
+                    full_res_img,
+                    args.live_dead_classifier,
+                    args.threshold_for_live_and_dead,
+                    live_seg_filename,
+                    dead_seg_filename,
+                )
+
+                live_cells.append(live_count)
+                dead_cells.append(dead_count)
+
         except Exception as e:
             print(f"Error occurred while processing: {e}", file=sys.stderr)
             predicted_num_cells.append("")
-    df["automated oocyst count"] = predicted_num_cells
+            if args.live_dead_classifier:
+                live_cells.append("")
+                dead_cells.append("")
+            continue
+
+    if not args.live_dead_classifier:
+        df["oocyst count"] = predicted_num_cells
+    else:
+        df["live oocyst count"] = live_cells
+        df["dead oocyst count"] = dead_cells
+
     df.to_csv(input_csv_path, index=False)
     return 0
 

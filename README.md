@@ -6,6 +6,7 @@ For an overview of all parasite development stages in mosquitoes see J C Beier, 
 
 For an overview of current experimental models for study of malaria see N.V. Simwela and A.P. Waters, "Current status of experimental models for the study of malaria", 2022, doi:[10.1017/S0031182021002134](https://doi.org/10.1017/S0031182021002134) (has a nice figure illustrating the parasite life cycle in mosquito and mammalian host).
 
+Install [git-lfs](https://git-lfs.com/) to download .oonx weights for live and dead classification.
 
 ## Installation
 
@@ -35,7 +36,7 @@ python predict_oocyst_counts.py input.csv cell_diameter_in_physical_units output
 ```
 or
 ```
-python predict_oocyst_counts.py input_dir cell_diameter_in_physical_units output_dir
+python -m src.predict_oocyst_counts input_dir cell_diameter_in_physical_units output_dir
 ```
 
 
@@ -52,3 +53,17 @@ python predict_oocyst_counts.py input_dir cell_diameter_in_physical_units output
 * --cellprob_threshold: Probability threshold to consider a region a cell.
 * --tile_norm_blocksize: Block size for image normalization.
 * --manual_segmentation: Option to manually correct any false positives/negatives missed from predictions
+* --live_dead_classifier: Option to classify live and dead oocysts. If given , the csv output generates "live oocyst count" and "dead oocyst count" instead of "automated oocyst count".
+
+### Classify live and dead oocysts using multiple models and select a ML model
+
+To train multiple ML models (RandomForest, SVM and GradientBoosting) to classify live and dead oocysts. use the below script
+
+'''
+python -m src.model_selection_classify_live_and_dead input.csv results
+'''
+
+#### Arguments:
+
+* input.csv: CSV file with a columns titled *file* , *live_oocyst_seg_file*, *dead_oocyst_seg_file* where each row lists a path to an image file, live oocyst segmentation file and dead oocyst segmentation file respectively.
+* results: Directory to save the extracted_features.csv on which the ML models are trained on and per fold ML saved in the onnx format. The metrics for all the fold for a given ML model are saved in the format {model_name}_fold_results.csv
