@@ -60,9 +60,6 @@ def train_and_evaluate_oocyst_classification_models(
 
     for name, model in models.items():
 
-        if name == "SVM":
-            model = Pipeline([("scaler", StandardScaler()), ("classifier", model)])
-
         model.fit(X_train, y_train)
 
         # predict_proba works for all models including SVM (since we set probability=True,and the scores
@@ -266,7 +263,15 @@ def main():
         "Random Forest": RandomForestClassifier(
             n_estimators=100, class_weight="balanced"
         ),
-        "SVM": SVC(probability=True, class_weight="balanced"),
+        # SVM requires a slightly different instantiation, using a pipeline to include scaling
+        # which is then also applied during inference. Setting probability to True allows us
+        # to treat the output the same as for the other models.
+        "SVM": Pipeline(
+            [
+                ("scaler", StandardScaler()),
+                ("classifier", SVC(probability=True, class_weight="balanced")),
+            ]
+        ),
         "Gradient Boosting": GradientBoostingClassifier(n_estimators=100),
     }
     parser = argparse.ArgumentParser(
@@ -315,6 +320,8 @@ def main():
 
         selected_models = {"run": [], "best_model": [], "wins": []}
 
+        # Use a temporary directory to store intermediate results across runs and folds
+        # in the end select the best model and copy to the output directory
         with tempfile.TemporaryDirectory() as temp_dir:
             for run in range(args.number_of_runs):
                 test_images_all_folds, model_parameters_metrics_for_all_folds = (
@@ -355,6 +362,11 @@ def main():
 
             df = pd.read_csv(csv_path_for_extracting_best_model)
 
+            # best_model_name is the algorithm name, e.g. "Random Forest".
+            # select the run_0_fold_0 parameters as the best model parameters
+            # selecting the run and fold with best AUC does not necessarily yield
+            # better results on other datasets as the test image may have been easier in
+            # that particular instance.
             final_model_path = (
                 pathlib.Path(temp_dir)
                 / f"{best_model_name.replace(' ', '_').lower()}_run_0_fold_0_model.onnx"

@@ -143,6 +143,10 @@ def csv_path(path, required_columns={}):
 
 
 def dir_path(path):
+    """
+    Define the dir_path type for use with argparse. Checks
+    that the given path string is a path to an existing directory.
+    """
     p = pathlib.Path(path)
     if p.is_dir():
         return p
@@ -153,6 +157,11 @@ def dir_path(path):
 
 
 def positive_int(i):
+    """
+    Define the positive_int type for use with argparse. Checks
+    that the given input is an integer greater than zero (Python
+    doesn't have an unsigned int type).
+    """
     res = int(i)
     if res > 0:
         return res
