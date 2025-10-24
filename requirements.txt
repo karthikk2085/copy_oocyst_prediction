@@ -6,4 +6,5 @@ h5py
 PyQt6==6.8.1
 scikit-learn
 skl2onnx
+onnxruntime
 
