@@ -205,7 +205,7 @@ def save_live_and_dead_masks(
     except Exception as e:
         print(f"Model does not have any threshold stored in .onnx format: {e}")
 
-    print(f"Values above {threshold} classified as dead oocysts.")
+    print(f"Classification scores above {threshold} classified as dead oocysts.")
 
     dead_count = int(np.sum(probs_array >= threshold))
     live_count = int(np.sum(probs_array < threshold))
@@ -324,11 +324,6 @@ def main(argv=None):
         help="Determines the size of blocks used for normalizing the image. ",
     )
     parser.add_argument(
-        "--manual_segmentation",
-        action="store_true",
-        help="If set, the GUI will be opened for manual segmentation correction.",
-    )
-    parser.add_argument(
         "--live_dead_classifier",
         type=lambda x: (
             pathlib.Path(x)
@@ -417,37 +412,41 @@ def main(argv=None):
                 sitk.sitkUInt16,
             )
 
-            if args.manual_segmentation:
-                # Temporarily write images to temporary directory to be opened in GUI for manual correction
+            # Write images to temporary directory to be opened in GUI for manual correction,
+            # if needed.
 
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    full_res_org_img_filename = str(
-                        pathlib.Path(tmpdirname) / "original_image.tiff"
-                    )
-                    full_label_mask_filename = str(
-                        pathlib.Path(tmpdirname) / "original_image_masks.tiff"
-                    )
-                    full_label_mask_npy_filename = str(
-                        pathlib.Path(tmpdirname) / "original_image_seg.npy"
-                    )
-                    sitk.WriteImage(
-                        sitk.Cast(
-                            sitk.RescaleIntensity(full_res_img[:, :, z_slice_in_focus]),
-                            sitk.sitkUInt8,
-                        ),
-                        full_res_org_img_filename,
-                    )
-                    sitk.WriteImage(full_res_label_mask, full_label_mask_filename)
-                    # Open the GUI for manual correction
-                    subprocess.run(
-                        [
-                            sys.executable,
-                            "-c",
-                            f"from src.predict_oocyst_counts import run_cellpose; \
-                            run_cellpose(image='{full_res_org_img_filename}',mask_file='{full_label_mask_filename}')",
-                        ]
-                    )
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                full_res_org_img_filename = str(
+                    pathlib.Path(tmpdirname) / "original_image.tiff"
+                )
+                full_label_mask_filename = str(
+                    pathlib.Path(tmpdirname) / "original_image_masks.tiff"
+                )
+                full_label_mask_npy_filename = str(
+                    pathlib.Path(tmpdirname) / "original_image_seg.npy"
+                )
+                sitk.WriteImage(
+                    sitk.Cast(
+                        sitk.RescaleIntensity(full_res_img[:, :, z_slice_in_focus]),
+                        sitk.sitkUInt8,
+                    ),
+                    full_res_org_img_filename,
+                )
+                sitk.WriteImage(full_res_label_mask, full_label_mask_filename)
+                # Open the GUI for manual correction
+                subprocess.run(
+                    [
+                        sys.executable,
+                        "-c",
+                        f"from src.predict_oocyst_counts import run_cellpose; \
+                        run_cellpose(image='{full_res_org_img_filename}',mask_file='{full_label_mask_filename}')",
+                    ]
+                )
 
+                # If manual correction is not performed, original_image_seg.npy will not be saved to disk.
+                # In that case, use the existing Cellpose-predicted full_res_label_mask to insert into the
+                # corresponding z-slice for the final segmentation output.
+                if pathlib.Path(full_label_mask_npy_filename).exists():
                     # Read the modified mask image
                     full_res_label_mask = sitk.GetImageFromArray(
                         np.load(full_label_mask_npy_filename, allow_pickle=True).item()[

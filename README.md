@@ -52,7 +52,6 @@ python -m src.predict_oocyst_counts input_dir cell_diameter_in_physical_units ou
 * --flow_threshold: Maximum allowed error in Cellpose flows.
 * --cellprob_threshold: Probability threshold to consider a region a cell.
 * --tile_norm_blocksize: Block size for image normalization.
-* --manual_segmentation: Option to manually correct any false positives/negatives missed from predictions
 * --live_dead_classifier: Option to classify live and dead oocysts. If given , the csv output generates "live oocyst count" and "dead oocyst count" instead of "automated oocyst count".
 
 ### Classify live and dead oocysts using multiple models and select a ML model
