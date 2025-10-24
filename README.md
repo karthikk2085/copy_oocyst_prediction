@@ -32,7 +32,7 @@ Estimated oocyst counts are written to a csv file. If the input was a csv file t
 #### Usage:
 
 ```
-python predict_oocyst_counts.py input.csv cell_diameter_in_physical_units output_dir
+python -m src.predict_oocyst_counts input.csv cell_diameter_in_physical_units output_dir
 ```
 or
 ```
@@ -58,9 +58,9 @@ python -m src.predict_oocyst_counts input_dir cell_diameter_in_physical_units ou
 
 To train multiple ML models (RandomForest, SVM and GradientBoosting) to classify live and dead oocysts. use the below script
 
-'''
+```
 python -m src.model_selection_classify_live_and_dead input.csv results
-'''
+```
 
 #### Arguments:
 
