@@ -1,3 +1,18 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "numpy<2",
+#     "cellpose[gui]==4.0.4",
+#     "pandas",
+#     "SimpleITK",
+#     "h5py",
+#     "PyQt6==6.8.1",
+#     "scikit-learn",
+#     "skl2onnx",
+#     "onnxruntime"
+# ]
+# ///
+import os
 import pathlib
 import sys
 import numpy as np
@@ -352,10 +367,11 @@ def main(argv=None):
 
     df = pd.read_csv(input_csv_path)
 
-    # Load the model
-    model = models.CellposeModel(gpu=True)
+    # Load the Cellpose SAM model
+    cellpose_sam_model = models.CellposeModel(gpu=True)
+
     predictor = partial(
-        model.eval,
+        cellpose_sam_model.eval,
         batch_size=1,
         flow_threshold=args.flow_threshold,
         cellprob_threshold=args.cellprob_threshold,
@@ -482,12 +498,12 @@ def main(argv=None):
                 )
 
                 predicted_num_cells.append("")
-                if args.live_dead_classifier:
+                if args.live_dead_classifier or uv_artifact("live_dead_onnx"):
                     live_cells.append("")
                     dead_cells.append("")
                 continue
 
-            if not args.live_dead_classifier:
+            if not args.live_dead_classifier or uv_artifact("live_dead_onnx"):
                 sitk.WriteImage(
                     full_res_label_mask_3d,
                     str(
