@@ -1,3 +1,17 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "numpy<2",
+#     "cellpose[gui]==4.0.4",
+#     "pandas",
+#     "SimpleITK",
+#     "h5py",
+#     "PyQt6==6.8.1",
+#     "scikit-learn",
+#     "skl2onnx",
+#     "onnxruntime"
+# ]
+# ///
 import pathlib
 import sys
 import numpy as np
@@ -326,12 +340,14 @@ def main(argv=None):
     parser.add_argument(
         "--live_dead_classifier",
         type=lambda x: (
-            pathlib.Path(x)
-            if pathlib.Path(x).is_file()
-            else parser.error(f"File {x} does not exist")
+            utils.path_to_remote_file(
+                x,
+                "https://github.com/karthikk2085/copy_oocyst_prediction/blob/main/src/svm.onnx",
+            ),
         ),
         help="Path to the ONNX model for live/dead classification of oocysts. \
-            If not provided, only oocyst counts will be provided.",
+            If not provided, only oocyst counts will be provided., \
+            If provided, but the file is not found locally, it will be downloaded from the remote_url.",
     )
     parser.add_argument(
         "--threshold_for_live_and_dead",
@@ -352,10 +368,11 @@ def main(argv=None):
 
     df = pd.read_csv(input_csv_path)
 
-    # Load the model
-    model = models.CellposeModel(gpu=True)
+    # Load the Cellpose SAM model
+    cellpose_sam_model = models.CellposeModel(gpu=True)
+
     predictor = partial(
-        model.eval,
+        cellpose_sam_model.eval,
         batch_size=1,
         flow_threshold=args.flow_threshold,
         cellprob_threshold=args.cellprob_threshold,
