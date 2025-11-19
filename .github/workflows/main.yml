@@ -51,6 +51,7 @@ jobs:
         pip install -r requirements_dev.txt
     - name: Build install and test package
       run: |
+        python -m pip install --upgrade pip setuptools wheel build
         python -m build
         ls -la dist
         pip install dist/copy_oocyst_prediction-*any.whl
