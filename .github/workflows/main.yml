@@ -34,7 +34,7 @@ jobs:
         pip install pre-commit
         pre-commit run --all-files
 
-build_test_and_upload:
+  build_test_and_upload:
     needs: preliminary_test
     runs-on: macos-latest
     steps: 

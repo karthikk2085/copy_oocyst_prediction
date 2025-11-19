@@ -341,7 +341,7 @@ def main(argv=None):
         "--live_dead_classifier",
         type=lambda x: utils.path_to_remote_file(
             x,
-            "https://raw.githubusercontent.com/karthikk2085/copy_oocyst_prediction/main/src/svm.onnx",
+            "https://github.com/karthikk2085/copy_oocyst_prediction/tree/main/src/copy_oocyst_prediction/svm.onnx",
         ),
         help="Path to the ONNX model for live/dead classification of oocysts. \
             If not provided, only oocyst counts will be provided., \
