@@ -1,0 +1,20 @@
+[project]
+name = "ibex_imaging_knowledge_base_utilities"
+version = "0.1.0"
+authors = [{ name="Karthik Kantipudi", email="karthik.kantipudi@nih.gov" },
+]
+description = "Tool to predict oocysts within microscopy images"
+readme = "README.md"
+license = "Apache-2.0"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dynamic = ["dependencies"]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+[tool.uv]
+managed = false
+[project.scripts]
+predict_oocysts = "copy_oocyst_prediction_forked.src.predict_oocyst_counts:main"
+

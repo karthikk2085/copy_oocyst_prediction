@@ -12,7 +12,6 @@
 #     "onnxruntime"
 # ]
 # ///
-import os
 import pathlib
 import sys
 import numpy as np
@@ -341,12 +340,14 @@ def main(argv=None):
     parser.add_argument(
         "--live_dead_classifier",
         type=lambda x: (
-            pathlib.Path(x)
-            if pathlib.Path(x).is_file()
-            else parser.error(f"File {x} does not exist")
+            utils.path_to_remote_file(
+                x,
+                "https://github.com/karthikk2085/copy_oocyst_prediction/blob/main/src/svm.onnx",
+            ),
         ),
         help="Path to the ONNX model for live/dead classification of oocysts. \
-            If not provided, only oocyst counts will be provided.",
+            If not provided, only oocyst counts will be provided., \
+            If provided, but the file is not found locally, it will be downloaded from the remote_url.",
     )
     parser.add_argument(
         "--threshold_for_live_and_dead",
@@ -498,12 +499,12 @@ def main(argv=None):
                 )
 
                 predicted_num_cells.append("")
-                if args.live_dead_classifier or uv_artifact("live_dead_onnx"):
+                if args.live_dead_classifier:
                     live_cells.append("")
                     dead_cells.append("")
                 continue
 
-            if not args.live_dead_classifier or uv_artifact("live_dead_onnx"):
+            if not args.live_dead_classifier:
                 sitk.WriteImage(
                     full_res_label_mask_3d,
                     str(
