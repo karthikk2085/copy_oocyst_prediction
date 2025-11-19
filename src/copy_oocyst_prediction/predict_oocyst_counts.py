@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import pandas as pd
 import SimpleITK as sitk
-from src.sitk_ims_file_io import read, read_metadata
+from copy_oocyst_prediction.sitk_ims_file_io import read, read_metadata
 from cellpose import models
 import argparse
 from functools import partial
@@ -25,7 +25,7 @@ from datetime import datetime
 import subprocess
 import tempfile
 import onnxruntime as ort
-import src.utils as utils
+import copy_oocyst_prediction.utils as utils
 
 """
 Script to predict number of cells from a given list of files in an input csv
@@ -168,7 +168,7 @@ def predict_cell_segmentation(img, slice_in_focus, predictor):
     boundary_values_arr = np.multiply(masks, image_boundary_arr)
     masks[np.isin(masks, np.unique(boundary_values_arr[boundary_values_arr != 0]))] = 0
 
-    num_unique_labels = np.unique(masks[masks != 0])
+    num_unique_labels = len(np.unique(masks[masks != 0]))
 
     filtered_mask = sitk.GetImageFromArray(masks.astype(np.uint16))
 
@@ -339,11 +339,9 @@ def main(argv=None):
     )
     parser.add_argument(
         "--live_dead_classifier",
-        type=lambda x: (
-            utils.path_to_remote_file(
-                x,
-                "https://github.com/karthikk2085/copy_oocyst_prediction/blob/main/src/svm.onnx",
-            ),
+        type=lambda x: utils.path_to_remote_file(
+            x,
+            "https://raw.githubusercontent.com/karthikk2085/copy_oocyst_prediction/main/src/svm.onnx",
         ),
         help="Path to the ONNX model for live/dead classification of oocysts. \
             If not provided, only oocyst counts will be provided., \
@@ -368,11 +366,10 @@ def main(argv=None):
 
     df = pd.read_csv(input_csv_path)
 
-    # Load the Cellpose SAM model
-    cellpose_sam_model = models.CellposeModel(gpu=True)
-
+    # Load the model
+    model = models.CellposeModel(gpu=True)
     predictor = partial(
-        cellpose_sam_model.eval,
+        model.eval,
         batch_size=1,
         flow_threshold=args.flow_threshold,
         cellprob_threshold=args.cellprob_threshold,
@@ -455,7 +452,7 @@ def main(argv=None):
                     [
                         sys.executable,
                         "-c",
-                        f"from src.predict_oocyst_counts import run_cellpose; \
+                        f"from copy_oocyst_prediction.predict_oocyst_counts import run_cellpose; \
                         run_cellpose(image='{full_res_org_img_filename}',mask_file='{full_label_mask_filename}')",
                     ]
                 )
