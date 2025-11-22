@@ -174,22 +174,13 @@ def positive_int(i):
 
 def path_to_remote_file(local_file_path, remote_url):
     """
-
-    Check if a local file exists; if not, download it from a remote URL.
-    Please provide secure and valid URLs to avoid security risks.
-
+    Check if a local file path exists; if does not, download it from a remote URL.
     Args:
         local_file_path (str): Path to the local file
         remote_url (str): URL of the remote file to download if local file doesn't exist
 
     """
-    if pathlib.Path(local_file_path).is_file():
-        return pathlib.Path(local_file_path)
-    else:
+    if not local_file_path or not pathlib.Path(local_file_path).is_file():
         urllib.request.urlretrieve(remote_url, local_file_path)
 
-        if not pathlib.Path(local_file_path).is_file():
-            raise FileNotFoundError(
-                f"Failed to download the file from {remote_url} to {local_file_path}"
-            )
-        return pathlib.Path(local_file_path)
+    return pathlib.Path(local_file_path)

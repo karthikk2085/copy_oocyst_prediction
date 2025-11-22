@@ -1,17 +1,3 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#     "numpy<2",
-#     "cellpose[gui]==4.0.4",
-#     "pandas",
-#     "SimpleITK",
-#     "h5py",
-#     "PyQt6==6.8.1",
-#     "scikit-learn",
-#     "skl2onnx",
-#     "onnxruntime"
-# ]
-# ///
 import pathlib
 import sys
 import numpy as np
@@ -346,9 +332,9 @@ def main(argv=None):
                 "main/src/copy_oocyst_prediction/svm.onnx"
             ),
         ),
+        nargs="?",
         help="Path to the ONNX model for live/dead classification of oocysts. \
-            If not provided, only oocyst counts will be provided., \
-            If provided, but the file is not found locally, it will be downloaded from the remote_url.",
+            If not provided, or the file not found locally, it will be downloaded from the remote_url.",
     )
     parser.add_argument(
         "--threshold_for_live_and_dead",
