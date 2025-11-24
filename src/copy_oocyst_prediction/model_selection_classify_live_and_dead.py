@@ -25,7 +25,7 @@ from sklearn.pipeline import Pipeline
 from skl2onnx.common.data_types import FloatTensorType
 from skl2onnx import convert_sklearn
 from typing import Tuple, Dict
-import src.utils as utils
+import copy_oocyst_prediction.utils as utils
 import shutil
 
 
