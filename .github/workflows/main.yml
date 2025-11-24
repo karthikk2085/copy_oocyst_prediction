@@ -68,7 +68,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: copy_oocyst_prediction-*any.whl
-          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.OOCYST_PREDICTION_PAT }}
           
