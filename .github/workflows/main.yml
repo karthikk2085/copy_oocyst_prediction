@@ -69,4 +69,6 @@ jobs:
         with:
           files: copy_oocyst_prediction-*any.whl
           draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.OOCYST_PREDICTION_PAT }}
           
