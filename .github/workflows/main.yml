@@ -67,7 +67,10 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           files: dist/copy_oocyst_prediction-*any.whl
+          draft: false
         env:
           GITHUB_TOKEN: ${{ secrets.OOCYST_PREDICTION_PAT }}
           
