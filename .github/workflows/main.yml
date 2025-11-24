@@ -67,7 +67,7 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: copy_oocyst_prediction-*any.whl
+          files: dist/copy_oocyst_prediction-*any.whl
         env:
           GITHUB_TOKEN: ${{ secrets.OOCYST_PREDICTION_PAT }}
           
